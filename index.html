@@ -4,15 +4,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
   <title>Face Stretcher</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
   <style>
+    @font-face {
+      font-family: 'SuperMario256';
+      src: url('assets/super_mario_256/SuperMario256.ttf') format('truetype');
+      font-weight: normal;
+      font-style: normal;
+    }
+
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
     body {
       overflow: hidden;
-      background: #0a0a1a;
-      font-family: 'Press Start 2P', monospace;
+      background: #5c94fc; /* SM64 sky blue */
+      font-family: 'SuperMario256', sans-serif;
     }
 
     canvas#c {
@@ -31,25 +36,43 @@
       display: flex;
       flex-direction: column;
       align-items: center;
-      padding: 14px 16px 10px;
-      gap: 8px;
+      padding: 14px 16px 12px;
+      gap: 10px;
       pointer-events: none;
-      background: linear-gradient(to bottom, rgba(10,10,26,0.85) 0%, rgba(10,10,26,0) 100%);
+      background: linear-gradient(to bottom,
+        rgba(0, 0, 80, 0.78) 0%,
+        rgba(0, 0, 60, 0.0) 100%
+      );
     }
 
+    /* ── Multi-color title: alternate R/B/Y/G per letter ── */
     #title {
-      font-size: clamp(10px, 2.5vw, 20px);
-      color: #e52222;
-      text-shadow: 2px 2px 0 #ffd700, 4px 4px 0 #8b0000;
-      letter-spacing: 0.05em;
+      font-size: clamp(14px, 3.2vw, 30px);
+      letter-spacing: 0.06em;
       user-select: none;
+      line-height: 1.1;
+      display: flex;
+      gap: 0;
+      flex-wrap: wrap;
+      justify-content: center;
+      filter: drop-shadow(3px 3px 0 rgba(0,0,0,0.55));
     }
+
+    /* Letter color cycling: red, blue, yellow, green */
+    #title .l0 { color: #E8281A; text-shadow: 0 3px 0 #8b1008, 0 5px 0 rgba(0,0,0,0.4); }
+    #title .l1 { color: #1B6FE8; text-shadow: 0 3px 0 #0a3d8b, 0 5px 0 rgba(0,0,0,0.4); }
+    #title .l2 { color: #F5C800; text-shadow: 0 3px 0 #9a7a00, 0 5px 0 rgba(0,0,0,0.4); }
+    #title .l3 { color: #22B035; text-shadow: 0 3px 0 #0d5c1a, 0 5px 0 rgba(0,0,0,0.4); }
+    /* Space between words */
+    #title .sp { width: 0.45em; display: inline-block; }
 
     #instructions {
-      font-size: clamp(6px, 1.2vw, 9px);
-      color: #ffd700;
-      opacity: 0.8;
+      font-size: clamp(7px, 1.3vw, 11px);
+      color: #fff;
+      opacity: 0.88;
       user-select: none;
+      text-shadow: 1px 1px 0 rgba(0,0,0,0.7), 0 2px 0 rgba(0,0,0,0.4);
+      letter-spacing: 0.04em;
     }
 
     #controls {
@@ -61,35 +84,73 @@
       margin-top: 2px;
     }
 
+    /* ── SM64-style chunky rounded buttons ── */
     .btn {
-      font-family: 'Press Start 2P', monospace;
-      font-size: clamp(7px, 1.3vw, 10px);
-      padding: 8px 14px;
-      background: #e52222;
-      color: #ffd700;
-      border: 2px solid #ffd700;
+      font-family: 'SuperMario256', sans-serif;
+      font-size: clamp(8px, 1.4vw, 12px);
+      padding: 10px 18px;
+      background: linear-gradient(to bottom, #ff5555 0%, #e52222 45%, #c01010 100%);
+      color: #fff;
+      border: none;
+      border-radius: 30px;
       cursor: pointer;
       outline: none;
-      box-shadow: 3px 3px 0 #8b0000;
-      transition: transform 0.08s, box-shadow 0.08s;
+      box-shadow:
+        0 5px 0 #8b0c0c,         /* hard bottom shadow = 3D floor */
+        0 7px 12px rgba(0,0,0,0.45); /* soft ambient drop */
+      transition: transform 0.07s ease, box-shadow 0.07s ease;
       user-select: none;
       -webkit-tap-highlight-color: transparent;
+      text-shadow: 0 1px 2px rgba(0,0,0,0.5);
+      letter-spacing: 0.03em;
     }
 
-    .btn:hover  { background: #ff3333; }
-    .btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 #8b0000; }
+    .btn:hover {
+      background: linear-gradient(to bottom, #ff7070 0%, #ff3333 45%, #d41515 100%);
+      transform: translateY(-2px);
+      box-shadow:
+        0 7px 0 #8b0c0c,
+        0 10px 16px rgba(0,0,0,0.5);
+    }
+
+    .btn:active {
+      transform: translateY(4px);
+      box-shadow:
+        0 1px 0 #8b0c0c,
+        0 3px 6px rgba(0,0,0,0.35);
+    }
+
     .btn:disabled {
-      opacity: 0.35;
+      opacity: 0.38;
       cursor: not-allowed;
       pointer-events: none;
       transform: none;
-      box-shadow: 3px 3px 0 #8b0000;
     }
 
-    #upload-label { background: #1a1a8e; box-shadow: 3px 3px 0 #00008b; }
-    #upload-label:hover { background: #2222aa; }
+    /* Upload — blue pill */
+    #upload-label {
+      background: linear-gradient(to bottom, #4d9fff 0%, #1a6fe8 45%, #0d4db5 100%);
+      box-shadow: 0 5px 0 #082b70, 0 7px 12px rgba(0,0,0,0.45);
+    }
+    #upload-label:hover {
+      background: linear-gradient(to bottom, #70b5ff 0%, #3385f0 45%, #1555cc 100%);
+      box-shadow: 0 7px 0 #082b70, 0 10px 16px rgba(0,0,0,0.5);
+    }
     #file-input { display: none; }
 
+    /* Save — yellow/gold pill */
+    #save-btn {
+      background: linear-gradient(to bottom, #ffe040 0%, #f5c800 45%, #c49a00 100%);
+      color: #5a3800;
+      text-shadow: 0 1px 1px rgba(255,255,255,0.3);
+      box-shadow: 0 5px 0 #7a6000, 0 7px 12px rgba(0,0,0,0.45);
+    }
+    #save-btn:hover {
+      background: linear-gradient(to bottom, #ffea60 0%, #ffd700 45%, #d4a800 100%);
+      box-shadow: 0 7px 0 #7a6000, 0 10px 16px rgba(0,0,0,0.5);
+    }
+
+    /* ── Startup placeholder — logo + text centered ── */
     #placeholder-msg {
       position: fixed;
       top: 50%;
@@ -97,12 +158,36 @@
       transform: translate(-50%, -50%);
       text-align: center;
       pointer-events: none;
-      color: #ffd700;
-      font-size: clamp(8px, 1.5vw, 12px);
-      line-height: 2;
-      opacity: 0.5;
-      text-shadow: 1px 1px 0 #8b6914;
       user-select: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      animation: placeholder-bob 2.4s ease-in-out infinite;
+    }
+
+    @keyframes placeholder-bob {
+      0%, 100% { transform: translate(-50%, -50%) translateY(0); }
+      50%       { transform: translate(-50%, -50%) translateY(-10px); }
+    }
+
+    #placeholder-logo {
+      width: clamp(220px, 38vw, 420px);
+      height: auto;
+      filter: drop-shadow(0 6px 16px rgba(0,0,0,0.5));
+    }
+
+    #placeholder-text {
+      font-family: 'SuperMario256', sans-serif;
+      font-size: clamp(10px, 2vw, 18px);
+      color: #fff;
+      text-shadow:
+        0 2px 0 rgba(0,0,0,0.55),
+        0 4px 10px rgba(0,0,0,0.35);
+      letter-spacing: 0.05em;
+      line-height: 1.6;
+      /* chunky outlined text */
+      -webkit-text-stroke: 1px rgba(0,0,60,0.4);
     }
 
     /* ── Crop overlay ───────────────────────────────────────────────── */
@@ -111,7 +196,7 @@
       position: fixed;
       inset: 0;
       z-index: 100;
-      background: #0a0a1a;
+      background: #5c94fc;
       flex-direction: column;
       align-items: stretch;
     }
@@ -123,7 +208,7 @@
       display: block;
       cursor: crosshair;
       touch-action: none;
-      min-height: 0; /* flex shrink fix */
+      min-height: 0;
     }
 
     #crop-ui {
@@ -131,38 +216,49 @@
       flex-direction: column;
       align-items: center;
       gap: 8px;
-      padding: 12px 16px 16px;
+      padding: 14px 16px 18px;
       pointer-events: none;
-      background: linear-gradient(to top, rgba(10,10,26,0.95) 0%, rgba(10,10,26,0.6) 60%, rgba(10,10,26,0) 100%);
+      background: linear-gradient(to top,
+        rgba(0,0,80,0.88) 0%,
+        rgba(0,0,60,0.5) 60%,
+        rgba(0,0,60,0) 100%
+      );
     }
 
     #crop-title {
-      font-size: clamp(10px, 2.5vw, 18px);
-      color: #e52222;
-      text-shadow: 2px 2px 0 #ffd700, 4px 4px 0 #8b0000;
+      font-family: 'SuperMario256', sans-serif;
+      font-size: clamp(12px, 2.8vw, 22px);
+      color: #F5C800;
+      text-shadow: 0 3px 0 #7a6000, 0 5px 10px rgba(0,0,0,0.5);
       user-select: none;
     }
 
     #crop-hint {
-      font-size: clamp(6px, 1.1vw, 8px);
-      color: #ffd700;
-      opacity: 0.75;
+      font-family: 'SuperMario256', sans-serif;
+      font-size: clamp(6px, 1.1vw, 9px);
+      color: #fff;
+      opacity: 0.8;
       user-select: none;
+      text-shadow: 1px 1px 0 rgba(0,0,0,0.6);
+      letter-spacing: 0.03em;
     }
 
     #crop-controls {
       display: flex;
-      gap: 12px;
+      gap: 14px;
       pointer-events: auto;
-      margin-top: 4px;
+      margin-top: 6px;
     }
 
-    #crop-confirm-btn { background: #1a7a1a; box-shadow: 3px 3px 0 #0a4a0a; border-color: #ffd700; }
-    #crop-confirm-btn:hover { background: #22aa22; }
-
-    #save-btn { background: #7a5a00; box-shadow: 3px 3px 0 #4a3600; }
-    #save-btn:hover { background: #aa7a00; }
-    #save-btn:not(:disabled) { border-color: #ffd700; }
+    /* Crop confirm — green pill */
+    #crop-confirm-btn {
+      background: linear-gradient(to bottom, #50d865 0%, #22aa35 45%, #107a20 100%);
+      box-shadow: 0 5px 0 #084f12, 0 7px 12px rgba(0,0,0,0.45);
+    }
+    #crop-confirm-btn:hover {
+      background: linear-gradient(to bottom, #6aeb7e 0%, #30c045 45%, #189530 100%);
+      box-shadow: 0 7px 0 #084f12, 0 10px 16px rgba(0,0,0,0.5);
+    }
   </style>
 </head>
 <body>
@@ -183,7 +279,7 @@
 </div>
 
 <div id="ui">
-  <div id="title">FACE STRETCHER</div>
+  <div id="title"></div>
   <div id="instructions">upload · crop · drag to stretch · undo/redo</div>
   <div id="controls">
     <label class="btn" id="upload-label" for="file-input">UPLOAD PHOTO</label>
@@ -195,11 +291,36 @@
   </div>
 </div>
 
+<!-- Startup placeholder: logo + prompt text -->
 <div id="placeholder-msg">
-  ↑ UPLOAD A PHOTO<br>TO BEGIN
+  <img id="placeholder-logo" src="assets/facestretcher_logo.png" alt="Face Stretcher Logo">
+  <div id="placeholder-text">UPLOAD A PHOTO<br>TO BEGIN</div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+// ── Build multi-color "FACE STRETCHER" title ──────────────────────────────────
+(function buildTitle() {
+  const titleEl = document.getElementById('title');
+  const text = 'FACE STRETCHER';
+  const colors = ['l0', 'l1', 'l2', 'l3']; // red, blue, yellow, green
+  let colorIdx = 0;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === ' ') {
+      const sp = document.createElement('span');
+      sp.className = 'sp';
+      titleEl.appendChild(sp);
+    } else {
+      const span = document.createElement('span');
+      span.className = colors[colorIdx % colors.length];
+      span.textContent = ch;
+      titleEl.appendChild(span);
+      colorIdx++;
+    }
+  }
+})();
+</script>
 <script>
 // ──────────────────────────────────────────────────────────────────────────────
 // SECTION 1: TUNEABLE CONSTANTS
@@ -232,7 +353,7 @@ const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
 renderer.setSize(window.innerWidth, window.innerHeight);
-renderer.setClearColor(0x0a0a1a, 1); // opaque dark during normal rendering
+renderer.setClearColor(0x5c94fc, 1); // SM64 sky blue during normal rendering
 
 const scene = new THREE.Scene();
 
@@ -253,7 +374,7 @@ camera.position.set(0, 0, 10);
 const mat = new THREE.MeshBasicMaterial({
   map: null,
   side: THREE.DoubleSide,
-  color: 0x333355, // visible placeholder tint before texture loads
+  color: 0x5c94fc, // sky blue placeholder tint before texture loads
 });
 
 // Initial plane (square); resized when image loads
@@ -887,7 +1008,7 @@ document.getElementById('save-btn').addEventListener('click', () => {
   // 1. Render one frame with a transparent background
   renderer.setClearColor(0x000000, 0); // fully transparent clear
   renderer.render(scene, camera);
-  renderer.setClearColor(0x0a0a1a, 1); // restore opaque dark for normal rendering
+  renderer.setClearColor(0x5c94fc, 1); // restore sky blue for normal rendering
 
   // 2. Read all pixels from the WebGL canvas
   const dpr = renderer.getPixelRatio();
@@ -945,11 +1066,34 @@ document.getElementById('save-btn').addEventListener('click', () => {
   }
   offCtx.putImageData(imgData, 0, 0);
 
-  // 5. Trigger download
-  const link    = document.createElement('a');
-  link.download = 'face-stretch.png';
-  link.href     = off.toDataURL('image/png');
-  link.click();
+  // 5. Save — native share sheet on mobile (saves to Photos), download on desktop
+  const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
+                   (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.userAgent)); // iPadOS
+
+  if (isMobile && navigator.canShare) {
+    // Convert canvas to Blob, then share as a File — triggers native OS share sheet
+    off.toBlob((blob) => {
+      const file = new File([blob], 'face-stretch.png', { type: 'image/png' });
+      if (navigator.canShare({ files: [file] })) {
+        navigator.share({ files: [file], title: 'Face Stretch' }).catch(() => {
+          // User cancelled or share failed — silently ignore
+        });
+      } else {
+        // Device supports share but not file sharing — fall back to download
+        const link = document.createElement('a');
+        link.download = 'face-stretch.png';
+        link.href = URL.createObjectURL(blob);
+        link.click();
+        setTimeout(() => URL.revokeObjectURL(link.href), 10000);
+      }
+    }, 'image/png');
+  } else {
+    // Desktop: standard download
+    const link    = document.createElement('a');
+    link.download = 'face-stretch.png';
+    link.href     = off.toDataURL('image/png');
+    link.click();
+  }
 });
 </script>
 </body>
