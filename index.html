@@ -127,27 +127,59 @@
       transform: none;
     }
 
-    /* Upload — blue pill */
+    /* Upload — green pill */
     #upload-label {
-      background: linear-gradient(to bottom, #4d9fff 0%, #1a6fe8 45%, #0d4db5 100%);
-      box-shadow: 0 5px 0 #082b70, 0 7px 12px rgba(0,0,0,0.45);
+      background: linear-gradient(to bottom, #50d865 0%, #22aa35 45%, #107a20 100%);
+      box-shadow: 0 5px 0 #084f12, 0 7px 12px rgba(0,0,0,0.45);
     }
     #upload-label:hover {
-      background: linear-gradient(to bottom, #70b5ff 0%, #3385f0 45%, #1555cc 100%);
-      box-shadow: 0 7px 0 #082b70, 0 10px 16px rgba(0,0,0,0.5);
+      background: linear-gradient(to bottom, #6aeb7e 0%, #30c045 45%, #189530 100%);
+      box-shadow: 0 7px 0 #084f12, 0 10px 16px rgba(0,0,0,0.5);
     }
     #file-input { display: none; }
 
-    /* Save — yellow/gold pill */
-    #save-btn {
+    /* Undo — yellow/gold pill */
+    #undo-btn {
       background: linear-gradient(to bottom, #ffe040 0%, #f5c800 45%, #c49a00 100%);
       color: #5a3800;
       text-shadow: 0 1px 1px rgba(255,255,255,0.3);
       box-shadow: 0 5px 0 #7a6000, 0 7px 12px rgba(0,0,0,0.45);
     }
-    #save-btn:hover {
+    #undo-btn:hover {
       background: linear-gradient(to bottom, #ffea60 0%, #ffd700 45%, #d4a800 100%);
       box-shadow: 0 7px 0 #7a6000, 0 10px 16px rgba(0,0,0,0.5);
+    }
+    #undo-btn:disabled {
+      background: linear-gradient(to bottom, #ffe040 0%, #f5c800 45%, #c49a00 100%);
+      box-shadow: 0 5px 0 #7a6000, 0 7px 12px rgba(0,0,0,0.45);
+    }
+
+    /* Redo — blue pill */
+    #redo-btn {
+      background: linear-gradient(to bottom, #4d9fff 0%, #1a6fe8 45%, #0d4db5 100%);
+      box-shadow: 0 5px 0 #082b70, 0 7px 12px rgba(0,0,0,0.45);
+    }
+    #redo-btn:hover {
+      background: linear-gradient(to bottom, #70b5ff 0%, #3385f0 45%, #1555cc 100%);
+      box-shadow: 0 7px 0 #082b70, 0 10px 16px rgba(0,0,0,0.5);
+    }
+    #redo-btn:disabled {
+      background: linear-gradient(to bottom, #4d9fff 0%, #1a6fe8 45%, #0d4db5 100%);
+      box-shadow: 0 5px 0 #082b70, 0 7px 12px rgba(0,0,0,0.45);
+    }
+
+    /* Save — green pill */
+    #save-btn {
+      background: linear-gradient(to bottom, #50d865 0%, #22aa35 45%, #107a20 100%);
+      box-shadow: 0 5px 0 #084f12, 0 7px 12px rgba(0,0,0,0.45);
+    }
+    #save-btn:hover {
+      background: linear-gradient(to bottom, #6aeb7e 0%, #30c045 45%, #189530 100%);
+      box-shadow: 0 7px 0 #084f12, 0 10px 16px rgba(0,0,0,0.5);
+    }
+    #save-btn:disabled {
+      background: linear-gradient(to bottom, #50d865 0%, #22aa35 45%, #107a20 100%);
+      box-shadow: 0 5px 0 #084f12, 0 7px 12px rgba(0,0,0,0.45);
     }
 
     /* ── Startup placeholder — logo + text centered ── */
@@ -164,6 +196,12 @@
       align-items: center;
       gap: 20px;
       animation: placeholder-bob 2.4s ease-in-out infinite;
+    }
+
+    #placeholder-msg #upload-label {
+      pointer-events: auto;
+      font-size: clamp(12px, 2.5vw, 18px);
+      padding: clamp(12px, 2.5vw, 16px) clamp(24px, 5vw, 40px);
     }
 
     @keyframes placeholder-bob {
@@ -259,6 +297,56 @@
       background: linear-gradient(to bottom, #6aeb7e 0%, #30c045 45%, #189530 100%);
       box-shadow: 0 7px 0 #084f12, 0 10px 16px rgba(0,0,0,0.5);
     }
+
+    /* ── Mobile responsive ───────────────────────────────────────────────── */
+    @media (max-width: 600px) {
+      #ui {
+        padding: 10px 10px 8px;
+        gap: 7px;
+      }
+
+      #title {
+        font-size: clamp(18px, 6vw, 28px);
+      }
+
+      #instructions {
+        font-size: clamp(9px, 2.8vw, 13px);
+      }
+
+      #controls {
+        gap: 8px;
+      }
+
+      .btn {
+        font-size: clamp(10px, 2.8vw, 14px);
+        padding: 10px 16px;
+      }
+
+      #placeholder-logo {
+        width: clamp(180px, 70vw, 320px);
+      }
+
+      #placeholder-text {
+        font-size: clamp(14px, 4.5vw, 20px);
+      }
+
+      #placeholder-msg #upload-label {
+        font-size: clamp(13px, 3.8vw, 18px);
+        padding: 12px 28px;
+      }
+
+      #crop-title {
+        font-size: clamp(16px, 5vw, 24px);
+      }
+
+      #crop-hint {
+        font-size: clamp(9px, 2.5vw, 12px);
+      }
+
+      #crop-controls {
+        gap: 10px;
+      }
+    }
   </style>
 </head>
 <body>
@@ -282,7 +370,6 @@
   <div id="title"></div>
   <div id="instructions">upload · crop · drag to stretch · undo/redo</div>
   <div id="controls">
-    <label class="btn" id="upload-label" for="file-input">UPLOAD PHOTO</label>
     <input type="file" id="file-input" accept="image/*">
     <button class="btn" id="reset-btn">RESET</button>
     <button class="btn" id="undo-btn" disabled>UNDO</button>
@@ -291,10 +378,11 @@
   </div>
 </div>
 
-<!-- Startup placeholder: logo + prompt text -->
+<!-- Startup placeholder: logo + prompt text + upload button -->
 <div id="placeholder-msg">
   <img id="placeholder-logo" src="assets/facestretcher_logo.png" alt="Face Stretcher Logo">
   <div id="placeholder-text">UPLOAD A PHOTO<br>TO BEGIN</div>
+  <label class="btn" id="upload-label" for="file-input">UPLOAD PHOTO</label>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
