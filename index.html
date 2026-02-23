@@ -25,7 +25,11 @@
       width: 100vw;
       height: 100vh;
       touch-action: none;
+      cursor: default;
     }
+
+    canvas#c.has-image { cursor: grab; }
+    canvas#c.is-dragging { cursor: grabbing; }
 
     /* ── Main UI overlay ────────────────────────────────────────────── */
     #ui {
@@ -67,12 +71,12 @@
     #title .sp { width: 0.45em; display: inline-block; }
 
     #instructions {
-      font-size: clamp(7px, 1.3vw, 11px);
-      color: #fff;
-      opacity: 0.88;
+      font-size: clamp(8px, 1.5vw, 12px);
+      color: #F5C800;
+      opacity: 0.95;
       user-select: none;
-      text-shadow: 1px 1px 0 rgba(0,0,0,0.7), 0 2px 0 rgba(0,0,0,0.4);
-      letter-spacing: 0.04em;
+      text-shadow: 0 2px 0 #7a6000, 1px 1px 0 rgba(0,0,0,0.7);
+      letter-spacing: 0.06em;
     }
 
     #controls {
@@ -228,6 +232,82 @@
       -webkit-text-stroke: 1px rgba(0,0,60,0.4);
     }
 
+    /* ── SM64-style dialog box — used for both startup hint and drag hint ── */
+    .sm64-dialog {
+      position: relative;
+      background: linear-gradient(to bottom, #fffde8 0%, #f5e87c 100%);
+      border: 4px solid #1a1a3a;
+      border-radius: 14px;
+      outline: 2px solid #e8c840;    /* inner gold ring, like PM dialog */
+      outline-offset: -7px;
+      padding: 14px 20px 14px 16px;
+      max-width: clamp(240px, 70vw, 380px);
+      box-shadow:
+        4px 6px 0 #1a1a3a,           /* hard drop shadow for 3D feel */
+        0 12px 28px rgba(0,0,0,0.5);
+      font-family: 'SuperMario256', sans-serif;
+      font-size: clamp(9px, 1.6vw, 13px);
+      color: #1a1a3a;
+      line-height: 1.75;
+      text-align: left;
+      user-select: none;
+      letter-spacing: 0.02em;
+    }
+
+    /* Star icon in top-right corner */
+    .sm64-dialog::after {
+      content: '⭐';
+      position: absolute;
+      top: -14px;
+      right: -10px;
+      font-size: clamp(16px, 2.5vw, 22px);
+      filter: drop-shadow(1px 2px 0 rgba(0,0,0,0.4));
+      line-height: 1;
+    }
+
+    /* Speech bubble tail — points upward (toward the action area) */
+    .sm64-dialog::before {
+      content: '';
+      position: absolute;
+      top: -18px;
+      left: 24px;
+      border: 9px solid transparent;
+      border-bottom-color: #1a1a3a;
+    }
+
+    /* ── Startup placeholder hint (inside bobbing container) ── */
+    #placeholder-hint {
+      margin-top: 4px;
+    }
+
+    /* tail points up toward the logo/button above it */
+    #placeholder-hint.sm64-dialog::before {
+      top: -18px;
+      left: 24px;
+    }
+
+    /* ── Drag hint — fixed at bottom, fades in/out ── */
+    #drag-hint {
+      position: fixed;
+      bottom: 28px;
+      left: 50%;
+      transform: translateX(-50%);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.5s ease;
+      z-index: 50;
+      white-space: nowrap;
+    }
+
+    #drag-hint.visible { opacity: 1; }
+
+    /* tail points up toward the canvas/photo */
+    #drag-hint.sm64-dialog::before {
+      top: -18px;
+      left: 50%;
+      transform: translateX(-50%);
+    }
+
     /* ── Crop overlay ───────────────────────────────────────────────── */
     #crop-overlay {
       display: none;
@@ -271,14 +351,13 @@
       user-select: none;
     }
 
-    #crop-hint {
-      font-family: 'SuperMario256', sans-serif;
-      font-size: clamp(6px, 1.1vw, 9px);
-      color: #fff;
-      opacity: 0.8;
-      user-select: none;
-      text-shadow: 1px 1px 0 rgba(0,0,0,0.6);
-      letter-spacing: 0.03em;
+    /* tail points DOWN toward the crop canvas above */
+    #crop-hint.sm64-dialog::before {
+      top: auto;
+      bottom: -18px;
+      left: 24px;
+      border-bottom-color: transparent;
+      border-top-color: #1a1a3a;
     }
 
     #crop-controls {
@@ -340,7 +419,20 @@
       }
 
       #crop-hint {
-        font-size: clamp(9px, 2.5vw, 12px);
+        font-size: clamp(10px, 3vw, 13px);
+        max-width: 85vw;
+      }
+
+      #drag-hint {
+        font-size: clamp(10px, 3vw, 13px);
+        bottom: 16px;
+        max-width: 85vw;
+        white-space: normal;
+      }
+
+      #placeholder-hint {
+        font-size: clamp(10px, 3vw, 13px);
+        max-width: 85vw;
       }
 
       #crop-controls {
@@ -358,31 +450,35 @@
   <canvas id="crop-canvas"></canvas>
   <div id="crop-ui">
     <div id="crop-title">CROP YOUR PHOTO</div>
-    <div id="crop-hint">DRAG TO SELECT · ENTER TO CONFIRM · ESC TO SKIP</div>
+    <div id="crop-hint" class="sm64-dialog">Drag to select the area you want, then tap Confirm — or skip to use the full photo.</div>
     <div id="crop-controls">
-      <button class="btn" id="crop-confirm-btn">CONFIRM</button>
-      <button class="btn" id="crop-cancel-btn">SKIP CROP</button>
+      <button class="btn" id="crop-confirm-btn" title="Use the selected area">CONFIRM CROP</button>
+      <button class="btn" id="crop-cancel-btn" title="Use the full photo without cropping">SKIP CROP</button>
     </div>
   </div>
 </div>
 
 <div id="ui">
   <div id="title"></div>
-  <div id="instructions">upload · crop · drag to stretch · undo/redo</div>
+  <div id="instructions">★ upload · crop · drag to stretch · undo/redo ★</div>
   <div id="controls">
     <input type="file" id="file-input" accept="image/*">
-    <button class="btn" id="reset-btn">RESET</button>
-    <button class="btn" id="undo-btn" disabled>UNDO</button>
-    <button class="btn" id="redo-btn" disabled>REDO</button>
-    <button class="btn" id="save-btn" disabled>SHARE</button>
+    <button class="btn" id="reset-btn" title="Remove all stretching and restore the original photo">RESET</button>
+    <button class="btn" id="undo-btn" disabled title="Undo the last stretch (Ctrl+Z)">UNDO</button>
+    <button class="btn" id="redo-btn" disabled title="Redo the last undone stretch (Ctrl+Y)">REDO</button>
+    <button class="btn" id="save-btn" disabled title="Save or share your stretched photo">SAVE</button>
   </div>
 </div>
+
+<!-- Drag hint — shown briefly after image loads, fades when user first drags -->
+<div id="drag-hint" class="sm64-dialog">Click and drag on the face to stretch it!</div>
 
 <!-- Startup placeholder: logo + prompt text + upload button -->
 <div id="placeholder-msg">
   <img id="placeholder-logo" src="assets/facestretcher_logo.png" alt="Face Stretcher Logo">
   <div id="placeholder-text">UPLOAD A PHOTO<br>TO BEGIN</div>
-  <label class="btn" id="upload-label" for="file-input">UPLOAD</label>
+  <label class="btn" id="upload-label" for="file-input" title="Choose a photo from your device">UPLOAD PHOTO</label>
+  <div id="placeholder-hint" class="sm64-dialog">Works great with selfies or portraits! After uploading, drag anywhere on the face to stretch it.</div>
 </div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -560,6 +656,7 @@ function applyDrag(hitPoint) {
   velocity.fill(0);
   isDirty = true;
   hasDraggedThisGesture = true;
+  dismissDragHint();
 }
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -683,6 +780,8 @@ function loadTextureFromURL(url) {
 
     document.getElementById('placeholder-msg').style.display = 'none';
     document.getElementById('save-btn').disabled = false;
+    canvas.classList.add('has-image');
+    showDragHint();
 
     clearUndoRedo(); // new image invalidates all previous vertex history
 
@@ -909,6 +1008,31 @@ cropCancelBtn.addEventListener('click', () => {
 });
 
 // ──────────────────────────────────────────────────────────────────────────────
+// SECTION 8.6: DRAG HINT — shown briefly after image loads
+// ──────────────────────────────────────────────────────────────────────────────
+const dragHintEl = document.getElementById('drag-hint');
+let dragHintTimer = null;
+let dragHintDismissed = false;
+
+function showDragHint() {
+  if (dragHintDismissed) return;
+  if (dragHintTimer) clearTimeout(dragHintTimer);
+  dragHintEl.classList.add('visible');
+  // Auto-hide after 4 seconds
+  dragHintTimer = setTimeout(hideDragHint, 4000);
+}
+
+function hideDragHint() {
+  dragHintEl.classList.remove('visible');
+  dragHintTimer = null;
+}
+
+function dismissDragHint() {
+  dragHintDismissed = true;
+  hideDragHint();
+}
+
+// ──────────────────────────────────────────────────────────────────────────────
 // SECTION 9: EVENT HANDLERS (MOUSE + TOUCH) — main stretch canvas
 // ──────────────────────────────────────────────────────────────────────────────
 
@@ -922,6 +1046,7 @@ canvas.addEventListener('mousedown', (e) => {
   hasDraggedThisGesture = false;
   grabPoint             = hit.clone();
   capturePreDragSnapshot();
+  canvas.classList.add('is-dragging');
 });
 
 canvas.addEventListener('mousemove', (e) => {
@@ -934,11 +1059,13 @@ canvas.addEventListener('mousemove', (e) => {
 canvas.addEventListener('mouseup', () => {
   if (isDragging && hasDraggedThisGesture) pushUndo();
   isDragging = false;
+  canvas.classList.remove('is-dragging');
 });
 
 canvas.addEventListener('mouseleave', () => {
   if (isDragging && hasDraggedThisGesture) pushUndo();
   isDragging = false;
+  canvas.classList.remove('is-dragging');
 });
 
 // ── Touch ─────────────────────────────────────────────────────────────────────
@@ -1154,12 +1281,13 @@ document.getElementById('save-btn').addEventListener('click', () => {
   }
   offCtx.putImageData(imgData, 0, 0);
 
-  // 5. Save — native share sheet on mobile (saves to Photos), download on desktop
-  const isMobile = /Mobi|Android|iPhone|iPad|iPod/i.test(navigator.userAgent) ||
-                   (navigator.maxTouchPoints > 1 && /Mac/.test(navigator.userAgent)); // iPadOS
+  // 5. Save — native share sheet on mobile (saves to Photos), direct download on desktop.
+  // Use pointer coarseness to detect touch devices — more reliable than UA sniffing.
+  // matchMedia('(pointer: coarse)') is true on phones/tablets, false on mouse-driven desktops.
+  const isTouchDevice = window.matchMedia('(pointer: coarse)').matches;
 
-  if (isMobile && navigator.canShare) {
-    // Convert canvas to Blob, then share as a File — triggers native OS share sheet
+  if (isTouchDevice && navigator.canShare) {
+    // Mobile: trigger native OS share sheet so user can save to Photos / send
     off.toBlob((blob) => {
       const file = new File([blob], 'face-stretch.png', { type: 'image/png' });
       if (navigator.canShare({ files: [file] })) {
@@ -1167,7 +1295,7 @@ document.getElementById('save-btn').addEventListener('click', () => {
           // User cancelled or share failed — silently ignore
         });
       } else {
-        // Device supports share but not file sharing — fall back to download
+        // Share API present but file sharing not supported — fall back to download
         const link = document.createElement('a');
         link.download = 'face-stretch.png';
         link.href = URL.createObjectURL(blob);
@@ -1176,7 +1304,7 @@ document.getElementById('save-btn').addEventListener('click', () => {
       }
     }, 'image/png');
   } else {
-    // Desktop: standard download
+    // Desktop: straightforward file download
     const link    = document.createElement('a');
     link.download = 'face-stretch.png';
     link.href     = off.toDataURL('image/png');
