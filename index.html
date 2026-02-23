@@ -186,18 +186,20 @@
       box-shadow: 0 5px 0 #084f12, 0 7px 12px rgba(0,0,0,0.45);
     }
 
-    /* ── Startup placeholder — logo + text centered ── */
+    /* ── Startup placeholder — logo + text centered in the space below the UI bar ── */
     #placeholder-msg {
       position: fixed;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
+      top: var(--ui-height, 110px); /* below the title+buttons bar */
+      bottom: 0;
+      left: 0;
+      right: 0;
       text-align: center;
       pointer-events: none;
       user-select: none;
       display: flex;
       flex-direction: column;
       align-items: center;
+      justify-content: center;
       gap: 20px;
       animation: placeholder-bob 2.4s ease-in-out infinite;
     }
@@ -209,8 +211,8 @@
     }
 
     @keyframes placeholder-bob {
-      0%, 100% { transform: translate(-50%, -50%) translateY(0); }
-      50%       { transform: translate(-50%, -50%) translateY(-10px); }
+      0%, 100% { transform: translateY(0); }
+      50%       { transform: translateY(-10px); }
     }
 
     #placeholder-logo {
@@ -1111,9 +1113,18 @@ document.getElementById('reset-btn').addEventListener('click', () => {
 // ──────────────────────────────────────────────────────────────────────────────
 // SECTION 10: RESIZE HANDLER
 // ──────────────────────────────────────────────────────────────────────────────
+
+// Keep --ui-height in sync so #placeholder-msg centers in the space below the bar
+function syncUIHeight() {
+  const h = document.getElementById('ui').getBoundingClientRect().height;
+  document.documentElement.style.setProperty('--ui-height', h + 'px');
+}
+syncUIHeight();
+
 window.addEventListener('resize', () => {
   const w = window.innerWidth;
   const h = window.innerHeight;
+  syncUIHeight();
   renderer.setSize(w, h);
 
   const aspect = w / h;
