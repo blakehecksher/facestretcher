@@ -1412,7 +1412,7 @@ document.getElementById('save-btn').addEventListener('click', () => {
     off.toBlob((blob) => {
       const file = new File([blob], 'face-stretch.png', { type: 'image/png' });
       if (navigator.canShare({ files: [file] })) {
-        navigator.share({ files: [file], title: 'Face Stretch' }).catch(() => {
+        navigator.share({ files: [file] }).catch(() => {
           // User cancelled or share failed — silently ignore
         });
       } else {
