@@ -564,6 +564,11 @@ const CONFIG = {
   SPRING_STIFFNESS:   180,    // k — higher = snappier return
   SPRING_DAMPING:     22,     // c — 22 is slightly underdamped (one gentle wobble)
   SPRING_THRESHOLD:   0.0005, // stop simulation when max displacement < this
+
+  // Parallax (gyro / two-finger tilt)
+  PARALLAX_MAX:    0.12,  // max world-space camera offset
+  PARALLAX_LERP:   7.0,   // smoothing speed
+  PARALLAX_SENS:   0.5,   // two-finger swipe sensitivity (fraction of pixel→world)
 };
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -629,6 +634,20 @@ let isDragging           = false;
 let grabPoint            = null;   // THREE.Vector3 — world position of last drag sample
 let isDirty              = false;  // true when GPU sync is needed this frame
 let hasDraggedThisGesture = false; // guard: prevents bare clicks from pushing undo entries
+
+// ── Parallax state ─────────────────────────────────────────────────────────────
+let parallaxTargetX  = 0;
+let parallaxTargetY  = 0;
+let parallaxCurrentX = 0;
+let parallaxCurrentY = 0;
+let gyroActive       = false;
+
+// Two-finger pan
+let twoFingerActive = false;
+let twoFingerMidX   = 0;
+let twoFingerMidY   = 0;
+let twoFingerBaseX  = 0;
+let twoFingerBaseY  = 0;
 
 function getEventNDC(e) {
   const cx = e.touches ? e.touches[0].clientX : e.clientX;
@@ -755,6 +774,13 @@ function animate(nowMs) {
 
   updateSpring(dt);
 
+  // ── Parallax: smoothly lerp camera toward target offset ───────────────────
+  const lerpT = 1 - Math.exp(-CONFIG.PARALLAX_LERP * dt);
+  parallaxCurrentX += (parallaxTargetX - parallaxCurrentX) * lerpT;
+  parallaxCurrentY += (parallaxTargetY - parallaxCurrentY) * lerpT;
+  camera.position.x = parallaxCurrentX;
+  camera.position.y = parallaxCurrentY;
+
   if (isDirty) {
     syncPositionsToGPU();
     isDirty = false;
@@ -764,6 +790,35 @@ function animate(nowMs) {
 }
 
 requestAnimationFrame(animate);
+
+// ──────────────────────────────────────────────────────────────────────────────
+// SECTION 7.5: GYRO PARALLAX
+// ──────────────────────────────────────────────────────────────────────────────
+function handleDeviceOrientation(e) {
+  if (!mat.map) return;
+  const gamma = e.gamma || 0; // left-right tilt, degrees (-90 to 90)
+  const beta  = e.beta  || 0; // front-back tilt; portrait upright ≈ 90°
+  const max   = CONFIG.PARALLAX_MAX;
+  parallaxTargetX = -Math.min(Math.max(gamma / 40, -1), 1) * max;
+  parallaxTargetY =  Math.min(Math.max((beta - 90) / 40, -1), 1) * max;
+  gyroActive = true;
+}
+
+(function setupGyro() {
+  if (typeof DeviceOrientationEvent === 'undefined') return;
+  if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+    // iOS 13+: permission must be triggered by a user gesture
+    document.addEventListener('touchstart', function requestGyro() {
+      DeviceOrientationEvent.requestPermission().then(state => {
+        if (state === 'granted') window.addEventListener('deviceorientation', handleDeviceOrientation);
+      }).catch(() => {});
+      document.removeEventListener('touchstart', requestGyro);
+    }, { once: true, capture: true });
+  } else {
+    // Android + other browsers
+    window.addEventListener('deviceorientation', handleDeviceOrientation);
+  }
+})();
 
 // ──────────────────────────────────────────────────────────────────────────────
 // SECTION 8: MESH REBUILD + TEXTURE PIPELINE
@@ -1114,7 +1169,21 @@ canvas.addEventListener('mouseleave', () => {
 // ── Touch ─────────────────────────────────────────────────────────────────────
 canvas.addEventListener('touchstart', (e) => {
   e.preventDefault();
+
+  if (e.touches.length === 2) {
+    // Two-finger: start parallax pan, cancel any active drag
+    if (isDragging && hasDraggedThisGesture) pushUndo();
+    isDragging      = false;
+    twoFingerActive = true;
+    twoFingerMidX   = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    twoFingerMidY   = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    twoFingerBaseX  = parallaxCurrentX;
+    twoFingerBaseY  = parallaxCurrentY;
+    return;
+  }
+
   if (!mat.map) return;
+  twoFingerActive = false;
   const hit = getHitPoint(getEventNDC(e));
   if (!hit) return;
   isDragging            = true;
@@ -1126,18 +1195,46 @@ canvas.addEventListener('touchstart', (e) => {
 
 canvas.addEventListener('touchmove', (e) => {
   e.preventDefault();
+
+  if (e.touches.length === 2 && twoFingerActive) {
+    const midX      = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+    const midY      = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+    const pxPerUnit = window.innerHeight / camH;
+    const sens      = CONFIG.PARALLAX_SENS;
+    const max       = CONFIG.PARALLAX_MAX;
+    const dx = (midX - twoFingerMidX) / pxPerUnit * sens;
+    const dy = (midY - twoFingerMidY) / pxPerUnit * sens;
+    parallaxTargetX = Math.min(Math.max(twoFingerBaseX + dx, -max), max);
+    parallaxTargetY = Math.min(Math.max(twoFingerBaseY - dy, -max), max); // flip Y
+    return;
+  }
+
   if (!isDragging || !grabPoint) return;
   const hit = getHitPoint(getEventNDC(e));
   if (!hit) return;
   applyDrag(hit);
 }, { passive: false });
 
-canvas.addEventListener('touchend', () => {
+canvas.addEventListener('touchend', (e) => {
+  if (twoFingerActive && e.touches.length < 2) {
+    twoFingerActive = false;
+    // Spring back to resting position if gyro isn't taking over
+    if (!gyroActive) {
+      parallaxTargetX = 0;
+      parallaxTargetY = 0;
+    }
+    return;
+  }
   if (isDragging && hasDraggedThisGesture) pushUndo();
   isDragging = false;
 });
 
 canvas.addEventListener('touchcancel', () => {
+  twoFingerActive = false;
+  if (!gyroActive) {
+    parallaxTargetX = 0;
+    parallaxTargetY = 0;
+  }
   if (isDragging && hasDraggedThisGesture) pushUndo();
   isDragging = false;
 });
