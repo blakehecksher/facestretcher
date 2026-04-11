@@ -566,9 +566,10 @@ const CONFIG = {
   SPRING_THRESHOLD:   0.0005, // stop simulation when max displacement < this
 
   // Parallax (gyro / two-finger tilt)
-  PARALLAX_MAX:    0.12,  // max world-space camera offset
-  PARALLAX_LERP:   7.0,   // smoothing speed
-  PARALLAX_SENS:   0.5,   // two-finger swipe sensitivity (fraction of pixel→world)
+  PARALLAX_MAX:         0.12,  // max camera-tilt magnitude (world units)
+  PARALLAX_LERP:        7.0,   // smoothing speed
+  PARALLAX_SENS:        0.5,   // two-finger swipe sensitivity
+  PARALLAX_DEPTH_SCALE: 4.0,   // how much a unit of Z displacement amplifies lateral shift
 };
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -755,11 +756,18 @@ function updateSpring(dt) {
 // SECTION 7: GPU SYNC + ANIMATION LOOP
 // ──────────────────────────────────────────────────────────────────────────────
 function syncPositionsToGPU() {
+  // Parallax: vertices pushed forward in Z shift laterally proportional to
+  // their depth — this makes deformed (closer) parts separate visually from
+  // the flat background when the phone is tilted.
+  const px = parallaxCurrentX * CONFIG.PARALLAX_DEPTH_SCALE;
+  const py = parallaxCurrentY * CONFIG.PARALLAX_DEPTH_SCALE;
+
   for (let i = 0; i < vertexCount; i++) {
     const i3 = i * 3;
-    posAttr.array[i3]     = originPos[i3]     + displacement[i3];
-    posAttr.array[i3 + 1] = originPos[i3 + 1] + displacement[i3 + 1];
-    posAttr.array[i3 + 2] = originPos[i3 + 2] + displacement[i3 + 2];
+    const vz = displacement[i3 + 2]; // Z is 0 for flat vertices; > 0 when pulled forward
+    posAttr.array[i3]     = originPos[i3]     + displacement[i3]     + vz * px;
+    posAttr.array[i3 + 1] = originPos[i3 + 1] + displacement[i3 + 1] + vz * py;
+    posAttr.array[i3 + 2] = originPos[i3 + 2] + vz;
   }
   posAttr.needsUpdate = true;
 }
@@ -774,12 +782,16 @@ function animate(nowMs) {
 
   updateSpring(dt);
 
-  // ── Parallax: smoothly lerp camera toward target offset ───────────────────
-  const lerpT = 1 - Math.exp(-CONFIG.PARALLAX_LERP * dt);
+  // ── Parallax: lerp toward target; mark dirty if it moved ──────────────────
+  const lerpT  = 1 - Math.exp(-CONFIG.PARALLAX_LERP * dt);
+  const prevPX = parallaxCurrentX;
+  const prevPY = parallaxCurrentY;
   parallaxCurrentX += (parallaxTargetX - parallaxCurrentX) * lerpT;
   parallaxCurrentY += (parallaxTargetY - parallaxCurrentY) * lerpT;
-  camera.position.x = parallaxCurrentX;
-  camera.position.y = parallaxCurrentY;
+  if (Math.abs(parallaxCurrentX - prevPX) > 0.00001 ||
+      Math.abs(parallaxCurrentY - prevPY) > 0.00001) {
+    isDirty = true;
+  }
 
   if (isDirty) {
     syncPositionsToGPU();
