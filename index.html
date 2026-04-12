@@ -565,11 +565,11 @@ const CONFIG = {
   SPRING_DAMPING:     22,     // c — 22 is slightly underdamped (one gentle wobble)
   SPRING_THRESHOLD:   0.0005, // stop simulation when max displacement < this
 
-  // Parallax (gyro / two-finger tilt)
-  PARALLAX_MAX:         0.12,  // max camera-tilt magnitude (world units)
+  // Parallax (gyro / two-finger tilt / middle-mouse drag)
+  PARALLAX_MAX:         0.35,  // max camera-tilt magnitude (world units) — increase for more effect
   PARALLAX_LERP:        7.0,   // smoothing speed
-  PARALLAX_SENS:        0.5,   // two-finger swipe sensitivity
-  PARALLAX_DEPTH_SCALE: 4.0,   // how much a unit of Z displacement amplifies lateral shift
+  PARALLAX_SENS:        1.2,   // two-finger / middle-mouse swipe sensitivity
+  PARALLAX_DEPTH_SCALE: 6.0,   // how much a unit of Z displacement amplifies lateral shift
 };
 
 // ──────────────────────────────────────────────────────────────────────────────
@@ -756,17 +756,27 @@ function updateSpring(dt) {
 // SECTION 7: GPU SYNC + ANIMATION LOOP
 // ──────────────────────────────────────────────────────────────────────────────
 function syncPositionsToGPU() {
-  // Parallax: vertices pushed forward in Z shift laterally proportional to
-  // their depth — this makes deformed (closer) parts separate visually from
-  // the flat background when the phone is tilted.
-  const px = parallaxCurrentX * CONFIG.PARALLAX_DEPTH_SCALE;
-  const py = parallaxCurrentY * CONFIG.PARALLAX_DEPTH_SCALE;
+  // Parallax: simulates a 3D rotation about the image center.
+  // Vertices that are pushed forward in Z shift laterally away from center —
+  // as if the whole mesh is rotating around its own center point.
+  // tiltX/tiltY are the rotation "angles" (in world-space units per unit of depth).
+  const tiltX = parallaxCurrentX * CONFIG.PARALLAX_DEPTH_SCALE;
+  const tiltY = parallaxCurrentY * CONFIG.PARALLAX_DEPTH_SCALE;
 
   for (let i = 0; i < vertexCount; i++) {
     const i3 = i * 3;
-    const vz = displacement[i3 + 2]; // Z is 0 for flat vertices; > 0 when pulled forward
-    posAttr.array[i3]     = originPos[i3]     + displacement[i3]     + vz * px;
-    posAttr.array[i3 + 1] = originPos[i3 + 1] + displacement[i3 + 1] + vz * py;
+    const ox = originPos[i3];
+    const oy = originPos[i3 + 1];
+    const vz = displacement[i3 + 2]; // Z is 0 for flat; > 0 when pulled forward
+
+    // Rotation about center: depth pushes vertex away from center proportionally.
+    // Flat vertices (vz=0) get no parallax shift — pivot is at z=0 (rest plane).
+    // Vertices pulled toward camera (vz>0) shift outward from center.
+    const finalX = ox + displacement[i3]     + vz * tiltX;
+    const finalY = oy + displacement[i3 + 1] + vz * tiltY;
+
+    posAttr.array[i3]     = finalX;
+    posAttr.array[i3 + 1] = finalY;
     posAttr.array[i3 + 2] = originPos[i3 + 2] + vz;
   }
   posAttr.needsUpdate = true;
@@ -1148,6 +1158,7 @@ function dismissDragHint() {
 
 // ── Mouse ─────────────────────────────────────────────────────────────────────
 canvas.addEventListener('mousedown', (e) => {
+  if (e.button !== 0) return; // only left button for stretching
   if (!mat.map) return;
   const hit = getHitPoint(getEventNDC(e));
   if (!hit) return;
@@ -1177,6 +1188,49 @@ canvas.addEventListener('mouseleave', () => {
   isDragging = false;
   canvas.classList.remove('is-dragging');
 });
+
+// ── Middle mouse button — parallax pan (same as two-finger drag on mobile) ───
+let middleMouseActive = false;
+let middleMouseBaseX  = 0;
+let middleMouseBaseY  = 0;
+let middleMouseStartX = 0;
+let middleMouseStartY = 0;
+
+canvas.addEventListener('mousedown', (e) => {
+  if (e.button !== 1) return; // only middle button
+  e.preventDefault();
+  middleMouseActive = true;
+  middleMouseStartX = e.clientX;
+  middleMouseStartY = e.clientY;
+  middleMouseBaseX  = parallaxCurrentX;
+  middleMouseBaseY  = parallaxCurrentY;
+  canvas.style.cursor = 'move';
+}, true); // capture phase so it doesn't interfere with left-click handler
+
+window.addEventListener('mousemove', (e) => {
+  if (!middleMouseActive) return;
+  const pxPerUnit = window.innerHeight / camH;
+  const sens      = CONFIG.PARALLAX_SENS;
+  const max       = CONFIG.PARALLAX_MAX;
+  const dx = (e.clientX - middleMouseStartX) / pxPerUnit * sens;
+  const dy = (e.clientY - middleMouseStartY) / pxPerUnit * sens;
+  parallaxTargetX = Math.min(Math.max(middleMouseBaseX + dx, -max), max);
+  parallaxTargetY = Math.min(Math.max(middleMouseBaseY - dy, -max), max); // flip Y
+});
+
+window.addEventListener('mouseup', (e) => {
+  if (e.button !== 1 || !middleMouseActive) return;
+  middleMouseActive = false;
+  canvas.style.cursor = mat.map ? (isDragging ? 'grabbing' : 'grab') : 'default';
+  // Spring back to center (same as two-finger release)
+  if (!gyroActive) {
+    parallaxTargetX = 0;
+    parallaxTargetY = 0;
+  }
+});
+
+// Prevent browser's default middle-click autoscroll behavior
+canvas.addEventListener('auxclick', (e) => { if (e.button === 1) e.preventDefault(); });
 
 // ── Touch ─────────────────────────────────────────────────────────────────────
 canvas.addEventListener('touchstart', (e) => {
