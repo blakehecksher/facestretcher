@@ -504,6 +504,7 @@
     <button class="btn" id="undo-btn" disabled title="Undo the last stretch (Ctrl+Z)">UNDO</button>
     <button class="btn" id="redo-btn" disabled title="Redo the last undone stretch (Ctrl+Y)">REDO</button>
     <button class="btn" id="save-btn" disabled title="Save or share your stretched photo">SAVE</button>
+    <button class="btn" id="gyro-btn" style="display:none" title="Enable tilt parallax effect">ENABLE TILT</button>
   </div>
 </div>
 
@@ -828,16 +829,23 @@ function handleDeviceOrientation(e) {
 
 (function setupGyro() {
   if (typeof DeviceOrientationEvent === 'undefined') return;
+
   if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-    // iOS 13+: permission must be triggered by a user gesture
-    document.addEventListener('touchstart', function requestGyro() {
+    // iOS 13+: permission MUST be called directly from a button click — touchstart
+    // on the canvas is not a trusted enough gesture context and fails silently.
+    const gyroBtn = document.getElementById('gyro-btn');
+    gyroBtn.style.display = ''; // show the button on iOS
+
+    gyroBtn.addEventListener('click', () => {
       DeviceOrientationEvent.requestPermission().then(state => {
-        if (state === 'granted') window.addEventListener('deviceorientation', handleDeviceOrientation);
+        if (state === 'granted') {
+          window.addEventListener('deviceorientation', handleDeviceOrientation);
+          gyroBtn.style.display = 'none'; // hide once granted
+        }
       }).catch(() => {});
-      document.removeEventListener('touchstart', requestGyro);
-    }, { once: true, capture: true });
+    });
   } else {
-    // Android + other browsers
+    // Android + other browsers — no permission needed
     window.addEventListener('deviceorientation', handleDeviceOrientation);
   }
 })();
