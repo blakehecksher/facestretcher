@@ -149,14 +149,14 @@
       right: calc(18px + env(safe-area-inset-right, 0px));
       bottom: calc(22px + env(safe-area-inset-bottom, 0px));
       z-index: 60;
-      width: 68px;
-      height: 68px;
-      padding: 8px;
+      width: 56px;
+      height: 56px;
+      padding: 6px;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 4px;
+      gap: 3px;
       border-radius: 50%;
       background: linear-gradient(to bottom, #ffe040 0%, #f5c800 45%, #c49a00 100%);
       color: #5a3800;
@@ -174,11 +174,18 @@
       box-shadow: 0 1px 0 #7a6000, 0 3px 6px rgba(0,0,0,0.35);
     }
     #gyro-btn:focus-visible { outline: 3px solid #fff; outline-offset: 5px; }
-    #gyro-btn svg { width: 27px; height: 27px; }
+    #gyro-btn svg { width: 24px; height: 24px; }
+    #gyro-phone {
+      transform-origin: 16px 16px;
+      transition: transform 0.25s ease;
+    }
+    #gyro-btn[aria-pressed="true"] #gyro-phone { transform: rotate(-18deg); }
+    #gyro-motion { opacity: 0; transition: opacity 0.25s ease; }
+    #gyro-btn[aria-pressed="true"] #gyro-motion { opacity: 1; }
     #gyro-status {
       position: fixed;
       right: calc(18px + env(safe-area-inset-right, 0px));
-      bottom: calc(104px + env(safe-area-inset-bottom, 0px));
+      bottom: calc(92px + env(safe-area-inset-bottom, 0px));
       z-index: 60;
       max-width: min(260px, calc(100vw - 36px));
       padding: 10px 12px;
@@ -555,10 +562,13 @@
 
 <button class="btn" id="gyro-btn" hidden aria-label="Turn tilt on" aria-pressed="false" title="Turn tilt on — hold your phone at the angle you want to use as flat">
   <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-    <rect x="10" y="5" width="12" height="22" rx="3" transform="rotate(-15 16 16)"/>
-    <path d="M15 23h2M5 10l-3 4 4 1M2 14c0-4 2-7 5-9M27 22l3-4-4-1M30 18c0 4-2 7-5 9"/>
+    <g id="gyro-phone">
+      <rect x="10" y="5" width="12" height="22" rx="3"/>
+      <path d="M15 23h2"/>
+    </g>
+    <path id="gyro-motion" d="M5 10l-3 4 4 1M2 14c0-4 2-7 5-9M27 22l3-4-4-1M30 18c0 4-2 7-5 9"/>
   </svg>
-  <span id="gyro-label">TILT OFF</span>
+  <span id="gyro-label">TILT</span>
 </button>
 <div id="gyro-status" role="status" aria-live="polite"></div>
 
@@ -907,10 +917,8 @@ function handleDeviceOrientation(e) {
 (function setupGyro() {
   if (typeof DeviceOrientationEvent === 'undefined') return;
   const gyroBtn = document.getElementById('gyro-btn');
-  const gyroLabel = document.getElementById('gyro-label');
   const gyroStatus = document.getElementById('gyro-status');
   let permissionGranted = typeof DeviceOrientationEvent.requestPermission !== 'function';
-  gyroBtn.hidden = false;
   window.addEventListener('deviceorientation', handleDeviceOrientation);
 
   gyroBtn.addEventListener('click', async () => {
@@ -938,7 +946,6 @@ function handleDeviceOrientation(e) {
     gyroBtn.setAttribute('aria-pressed', String(gyroActive));
     gyroBtn.setAttribute('aria-label', gyroActive ? 'Turn tilt off' : 'Turn tilt on');
     gyroBtn.title = gyroActive ? 'Turn tilt off' : 'Turn tilt on — hold your phone at the angle you want to use as flat';
-    gyroLabel.textContent = gyroActive ? 'TILT ON' : 'TILT OFF';
   });
 })();
 
@@ -995,6 +1002,7 @@ function loadTextureFromURL(url) {
     document.getElementById('placeholder-msg').style.display = 'none';
     document.getElementById('save-btn').disabled = false;
     canvas.classList.add('has-image');
+    document.getElementById('gyro-btn').hidden = typeof DeviceOrientationEvent === 'undefined';
     showDragHint();
 
     clearUndoRedo(); // new image invalidates all previous vertex history
