@@ -143,6 +143,52 @@
     }
     #file-input { display: none; }
 
+    /* Tilt — yellow circular toggle, clear of phone safe areas. */
+    #gyro-btn {
+      position: fixed;
+      right: calc(18px + env(safe-area-inset-right, 0px));
+      bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+      z-index: 60;
+      width: 68px;
+      height: 68px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 4px;
+      border-radius: 50%;
+      background: linear-gradient(to bottom, #ffe040 0%, #f5c800 45%, #c49a00 100%);
+      color: #5a3800;
+      font-size: 8px;
+      text-shadow: 0 1px 1px rgba(255,255,255,0.3);
+      box-shadow: 0 5px 0 #7a6000, 0 7px 12px rgba(0,0,0,0.45);
+    }
+    #gyro-btn[hidden] { display: none; }
+    #gyro-btn:hover {
+      background: linear-gradient(to bottom, #ffea60 0%, #ffd700 45%, #d4a800 100%);
+      box-shadow: 0 7px 0 #7a6000, 0 10px 16px rgba(0,0,0,0.5);
+    }
+    #gyro-btn:active, #gyro-btn[aria-pressed="true"] {
+      transform: translateY(4px);
+      box-shadow: 0 1px 0 #7a6000, 0 3px 6px rgba(0,0,0,0.35);
+    }
+    #gyro-btn:focus-visible { outline: 3px solid #fff; outline-offset: 5px; }
+    #gyro-btn svg { width: 27px; height: 27px; }
+    #gyro-status {
+      position: fixed;
+      right: calc(18px + env(safe-area-inset-right, 0px));
+      bottom: calc(104px + env(safe-area-inset-bottom, 0px));
+      z-index: 60;
+      max-width: min(260px, calc(100vw - 36px));
+      padding: 10px 12px;
+      border-radius: 12px;
+      background: rgba(0, 0, 60, 0.9);
+      color: white;
+      font: 14px/1.4 sans-serif;
+    }
+    #gyro-status:empty { display: none; }
+
     /* Undo — yellow/gold pill */
     #undo-btn {
       background: linear-gradient(to bottom, #ffe040 0%, #f5c800 45%, #c49a00 100%);
@@ -504,9 +550,17 @@
     <button class="btn" id="undo-btn" disabled title="Undo the last stretch (Ctrl+Z)">UNDO</button>
     <button class="btn" id="redo-btn" disabled title="Redo the last undone stretch (Ctrl+Y)">REDO</button>
     <button class="btn" id="save-btn" disabled title="Save or share your stretched photo">SAVE</button>
-    <button class="btn" id="gyro-btn" style="display:none" title="Enable tilt parallax effect">ENABLE TILT</button>
   </div>
 </div>
+
+<button class="btn" id="gyro-btn" hidden aria-label="Turn tilt on" aria-pressed="false" title="Turn tilt on — hold your phone at the angle you want to use as flat">
+  <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <rect x="10" y="5" width="12" height="22" rx="3" transform="rotate(-15 16 16)"/>
+    <path d="M15 23h2M5 10l-3 4 4 1M2 14c0-4 2-7 5-9M27 22l3-4-4-1M30 18c0 4-2 7-5 9"/>
+  </svg>
+  <span id="gyro-label">TILT OFF</span>
+</button>
+<div id="gyro-status" role="status" aria-live="polite"></div>
 
 <!-- Drag hint — shown briefly after image loads, fades when user first drags -->
 <div id="drag-hint" class="sm64-dialog">Click and drag on the face to stretch it!</div>
@@ -643,6 +697,12 @@ let parallaxTargetY  = 0;
 let parallaxCurrentX = 0;
 let parallaxCurrentY = 0;
 let gyroActive       = false;
+let gyroNeutral      = null;
+let gyroScreenAngle  = 0;
+const gyroRotation   = new THREE.Quaternion();
+const gyroRelative   = new THREE.Quaternion();
+const gyroForward    = new THREE.Vector3();
+const gyroEuler      = new THREE.Euler(0, 0, 0, 'ZXY');
 
 // Two-finger pan
 let twoFingerActive = false;
@@ -818,36 +878,68 @@ requestAnimationFrame(animate);
 // SECTION 7.5: GYRO PARALLAX
 // ──────────────────────────────────────────────────────────────────────────────
 function handleDeviceOrientation(e) {
-  if (!mat.map) return;
-  const gamma = e.gamma || 0; // left-right tilt, degrees (-90 to 90)
-  const beta  = e.beta  || 0; // front-back tilt; portrait upright ≈ 90°
-  const max   = CONFIG.PARALLAX_MAX;
-  parallaxTargetX = -Math.min(Math.max(gamma / 40, -1), 1) * max;
-  parallaxTargetY =  Math.min(Math.max((beta - 90) / 40, -1), 1) * max;
-  gyroActive = true;
+  if (!gyroActive || !Number.isFinite(e.beta) || !Number.isFinite(e.gamma)) return;
+  const radians = Math.PI / 180;
+  const screenAngle = window.screen.orientation?.angle ?? window.orientation ?? 0;
+  // DeviceOrientation uses Z (alpha), X (beta), Y (gamma) rotations.
+  // Relative quaternions keep the neutral pose stable across angle wraparound.
+  gyroEuler.set(e.beta * radians, e.gamma * radians,
+    (Number.isFinite(e.alpha) ? e.alpha : 0) * radians, 'ZXY');
+  gyroRotation.setFromEuler(gyroEuler);
+  if (!gyroNeutral || screenAngle !== gyroScreenAngle) {
+    gyroNeutral = gyroRotation.clone().invert();
+    gyroScreenAngle = screenAngle;
+    parallaxTargetX = 0;
+    parallaxTargetY = 0;
+    return;
+  }
+  if (!mat.map || twoFingerActive || middleMouseActive) return;
+  gyroRelative.copy(gyroNeutral).multiply(gyroRotation);
+  gyroForward.set(0, 0, 1).applyQuaternion(gyroRelative);
+  const x = Math.atan2(gyroForward.x, gyroForward.z) / radians;
+  const y = -Math.atan2(gyroForward.y, Math.hypot(gyroForward.x, gyroForward.z)) / radians;
+  const angle = screenAngle * radians;
+  const max = CONFIG.PARALLAX_MAX;
+  parallaxTargetX = -THREE.MathUtils.clamp((x * Math.cos(angle) + y * Math.sin(angle)) / 40, -1, 1) * max;
+  parallaxTargetY = THREE.MathUtils.clamp((y * Math.cos(angle) - x * Math.sin(angle)) / 40, -1, 1) * max;
 }
 
 (function setupGyro() {
   if (typeof DeviceOrientationEvent === 'undefined') return;
+  const gyroBtn = document.getElementById('gyro-btn');
+  const gyroLabel = document.getElementById('gyro-label');
+  const gyroStatus = document.getElementById('gyro-status');
+  let permissionGranted = typeof DeviceOrientationEvent.requestPermission !== 'function';
+  gyroBtn.hidden = false;
+  window.addEventListener('deviceorientation', handleDeviceOrientation);
 
-  if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-    // iOS 13+: permission MUST be called directly from a button click — touchstart
-    // on the canvas is not a trusted enough gesture context and fails silently.
-    const gyroBtn = document.getElementById('gyro-btn');
-    gyroBtn.style.display = ''; // show the button on iOS
-
-    gyroBtn.addEventListener('click', () => {
-      DeviceOrientationEvent.requestPermission().then(state => {
-        if (state === 'granted') {
-          window.addEventListener('deviceorientation', handleDeviceOrientation);
-          gyroBtn.style.display = 'none'; // hide once granted
+  gyroBtn.addEventListener('click', async () => {
+    gyroStatus.textContent = '';
+    if (!gyroActive && !permissionGranted) {
+      gyroBtn.disabled = true;
+      try {
+        // iOS requires this call directly in the button's user gesture.
+        permissionGranted = await DeviceOrientationEvent.requestPermission() === 'granted';
+        if (!permissionGranted) {
+          gyroStatus.textContent = 'Allow motion access in your browser to use tilt.';
+          return;
         }
-      }).catch(() => {});
-    });
-  } else {
-    // Android + other browsers — no permission needed
-    window.addEventListener('deviceorientation', handleDeviceOrientation);
-  }
+      } catch (error) {
+        gyroStatus.textContent = 'Motion access is unavailable. Use HTTPS and try again.';
+        return;
+      } finally {
+        gyroBtn.disabled = false;
+      }
+    }
+    gyroActive = !gyroActive;
+    gyroNeutral = null; // next sensor reading establishes the new flat pose
+    parallaxTargetX = 0;
+    parallaxTargetY = 0; // existing animation easing returns smoothly to flat
+    gyroBtn.setAttribute('aria-pressed', String(gyroActive));
+    gyroBtn.setAttribute('aria-label', gyroActive ? 'Turn tilt off' : 'Turn tilt on');
+    gyroBtn.title = gyroActive ? 'Turn tilt off' : 'Turn tilt on — hold your phone at the angle you want to use as flat';
+    gyroLabel.textContent = gyroActive ? 'TILT ON' : 'TILT OFF';
+  });
 })();
 
 // ──────────────────────────────────────────────────────────────────────────────
