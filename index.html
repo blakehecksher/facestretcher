@@ -133,15 +133,47 @@
     }
 
     /* Upload — green pill */
-    #upload-label {
+    #upload-label, #camera-label {
       background: linear-gradient(to bottom, #50d865 0%, #22aa35 45%, #107a20 100%);
       box-shadow: 0 5px 0 #084f12, 0 7px 12px rgba(0,0,0,0.45);
     }
-    #upload-label:hover {
+    #upload-label:hover, #camera-label:hover {
       background: linear-gradient(to bottom, #6aeb7e 0%, #30c045 45%, #189530 100%);
       box-shadow: 0 7px 0 #084f12, 0 10px 16px rgba(0,0,0,0.5);
     }
-    #file-input { display: none; }
+    #file-input, #camera-input, #camera-label[hidden] { display: none; }
+
+    #depth-btn {
+      position: fixed;
+      left: calc(18px + env(safe-area-inset-left, 0px));
+      bottom: calc(22px + env(safe-area-inset-bottom, 0px));
+      z-index: 60;
+      width: 56px;
+      height: 56px;
+      padding: 6px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 3px;
+      border-radius: 50%;
+      font-size: 8px;
+      background: linear-gradient(to bottom, #4d9fff 0%, #1a6fe8 45%, #0d4db5 100%);
+      box-shadow: 0 5px 0 #082b70, 0 7px 12px rgba(0,0,0,0.45);
+    }
+    #depth-btn[hidden] { display: none; }
+    #depth-btn:hover {
+      background: linear-gradient(to bottom, #70b5ff 0%, #3385f0 45%, #1555cc 100%);
+      box-shadow: 0 7px 0 #082b70, 0 10px 16px rgba(0,0,0,0.5);
+    }
+    #depth-btn:active, #depth-btn[aria-pressed="true"] {
+      transform: translateY(4px);
+      box-shadow: 0 1px 0 #082b70, 0 3px 6px rgba(0,0,0,0.35);
+    }
+    #depth-btn:focus-visible { outline: 3px solid white; outline-offset: 4px; }
+    #depth-btn svg { width: 24px; height: 24px; }
+    #depth-arrow { transform-origin: 16px 14.5px; transition: transform 0.25s ease; }
+    #depth-btn[aria-pressed="true"] #depth-arrow { transform: rotate(180deg); }
 
     /* Tilt — yellow circular toggle, clear of phone safe areas. */
     #gyro-btn {
@@ -258,7 +290,15 @@
       animation: placeholder-bob 2.4s ease-in-out infinite;
     }
 
-    #placeholder-msg #upload-label {
+    #photo-actions {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 16px;
+      max-width: calc(100vw - 32px);
+      pointer-events: auto;
+    }
+    #placeholder-msg #upload-label, #placeholder-msg #camera-label {
       pointer-events: auto;
       font-size: clamp(12px, 2.5vw, 18px);
       padding: clamp(12px, 2.5vw, 16px) clamp(24px, 5vw, 40px);
@@ -494,7 +534,7 @@
         font-size: clamp(14px, 4.5vw, 20px);
       }
 
-      #placeholder-msg #upload-label {
+      #placeholder-msg #upload-label, #placeholder-msg #camera-label {
         font-size: clamp(13px, 3.8vw, 18px);
         padding: 12px 28px;
       }
@@ -553,12 +593,21 @@
   <div id="instructions">★ upload · crop · drag to stretch · undo/redo ★</div>
   <div id="controls">
     <input type="file" id="file-input" accept="image/*">
+    <input type="file" id="camera-input" accept="image/*" capture="user">
     <button class="btn" id="reset-btn" title="Remove all stretching and restore the original photo">RESET</button>
     <button class="btn" id="undo-btn" disabled title="Undo the last stretch (Ctrl+Z)">UNDO</button>
     <button class="btn" id="redo-btn" disabled title="Redo the last undone stretch (Ctrl+Y)">REDO</button>
     <button class="btn" id="save-btn" disabled title="Save or share your stretched photo">SAVE</button>
   </div>
 </div>
+
+<button class="btn" id="depth-btn" hidden disabled aria-pressed="false" aria-label="Pull mode. Switch to push" title="Drag to pull the photo toward you. Tap to switch to push.">
+  <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <path d="M7 26h18"/>
+    <path id="depth-arrow" d="M16 22V7m-6 6 6-6 6 6"/>
+  </svg>
+  <span id="depth-label">PULL</span>
+</button>
 
 <button class="btn" id="gyro-btn" hidden aria-label="Turn tilt on" aria-pressed="false" title="Turn tilt on — hold your phone at the angle you want to use as flat">
   <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -579,7 +628,10 @@
 <div id="placeholder-msg">
   <img id="placeholder-logo" src="assets/facestretcher_logo.png" alt="Face Stretcher Logo">
   <div id="placeholder-text">UPLOAD A PHOTO<br>TO BEGIN</div>
-  <label class="btn" id="upload-label" for="file-input" title="Choose a photo from your device">UPLOAD PHOTO</label>
+  <div id="photo-actions">
+    <button class="btn" id="upload-label" type="button" title="Choose a photo from your device">UPLOAD PHOTO</button>
+    <button class="btn" id="camera-label" type="button" hidden title="Take a photo with your phone camera">TAKE PHOTO</button>
+  </div>
   <div id="placeholder-hint" class="sm64-dialog">Works great with selfies or portraits! After uploading, drag anywhere on the face to stretch it.</div>
 </div>
 
@@ -622,7 +674,7 @@ const CONFIG = {
   FALLOFF_SHARPNESS:  3.0,    // power-curve exponent (higher = more local pull)
   MAX_DISPLACEMENT:   1.8,    // max distance a vertex can move from origin
 
-  // Z-axis (depth) displacement — gives a subtle 3D bulge when pulling
+  // Z-axis (depth) displacement — bulges out in pull mode, indents in push mode
   DRAG_Z_SCALE:       0.12,
 
   // Spring reset animation
@@ -700,6 +752,7 @@ let isDragging           = false;
 let grabPoint            = null;   // THREE.Vector3 — world position of last drag sample
 let isDirty              = false;  // true when GPU sync is needed this frame
 let hasDraggedThisGesture = false; // guard: prevents bare clicks from pushing undo entries
+let depthDirection       = 1; // +1 pulls toward the camera, -1 pushes away
 
 // ── Parallax state ─────────────────────────────────────────────────────────────
 let parallaxTargetX  = 0;
@@ -746,7 +799,7 @@ function applyDrag(hitPoint) {
   const r2       = r * r;
   const sharpness = CONFIG.FALLOFF_SHARPNESS;
   const maxDisp  = CONFIG.MAX_DISPLACEMENT;
-  const zScale   = CONFIG.DRAG_Z_SCALE;
+  const zScale   = CONFIG.DRAG_Z_SCALE * depthDirection;
 
   for (let i = 0; i < vertexCount; i++) {
     const i3 = i * 3;
@@ -838,11 +891,11 @@ function syncPositionsToGPU() {
     const i3 = i * 3;
     const ox = originPos[i3];
     const oy = originPos[i3 + 1];
-    const vz = displacement[i3 + 2]; // Z is 0 for flat; > 0 when pulled forward
+    const vz = displacement[i3 + 2]; // positive = pulled forward; negative = pushed back
 
     // Rotation about center: depth pushes vertex away from center proportionally.
     // Flat vertices (vz=0) get no parallax shift — pivot is at z=0 (rest plane).
-    // Vertices pulled toward camera (vz>0) shift outward from center.
+    // Pushed vertices (vz<0) shift in the opposite direction from pulled ones.
     const finalX = ox + displacement[i3]     + vz * tiltX;
     const finalY = oy + displacement[i3 + 1] + vz * tiltY;
 
@@ -1001,6 +1054,8 @@ function loadTextureFromURL(url) {
 
     document.getElementById('placeholder-msg').style.display = 'none';
     document.getElementById('save-btn').disabled = false;
+    document.getElementById('depth-btn').disabled = false;
+    document.getElementById('depth-btn').hidden = false;
     canvas.classList.add('has-image');
     document.getElementById('gyro-btn').hidden = typeof DeviceOrientationEvent === 'undefined';
     showDragHint();
@@ -1013,13 +1068,28 @@ function loadTextureFromURL(url) {
 
 // File input — load raw image, open crop overlay
 const fileInput = document.getElementById('file-input');
+const cameraInput = document.getElementById('camera-input');
+const uploadButton = document.getElementById('upload-label');
+const cameraButton = document.getElementById('camera-label');
 
-fileInput.addEventListener('change', (e) => {
-  const file = e.target.files[0];
-  if (!file) return;
-  fileInput.value = ''; // allow same file re-upload
-  loadImageFile(file);
-});
+uploadButton.addEventListener('click', () => fileInput.click());
+cameraButton.addEventListener('click', () => cameraInput.click());
+
+// Android photo pickers may omit the camera. Keep the library picker separate
+// from a capture input so both native routes are available; iOS stays unchanged.
+if (navigator.userAgentData?.platform === 'Android' || /Android/i.test(navigator.userAgent)) {
+  cameraButton.hidden = false;
+  uploadButton.textContent = 'CHOOSE PHOTO';
+}
+
+for (const input of [fileInput, cameraInput]) {
+  input.addEventListener('change', () => {
+    const file = input.files[0];
+    if (!file) return;
+    input.value = ''; // allow same file re-upload or capture
+    loadImageFile(file);
+  });
+}
 
 // Shared helper — routes a File/Blob through the crop flow
 function loadImageFile(file) {
@@ -1414,6 +1484,18 @@ canvas.addEventListener('touchcancel', () => {
 });
 
 // ── Reset button ──────────────────────────────────────────────────────────────
+const depthButton = document.getElementById('depth-btn');
+depthButton.addEventListener('click', () => {
+  depthDirection *= -1;
+  const pushing = depthDirection < 0;
+  document.getElementById('depth-label').textContent = pushing ? 'PUSH' : 'PULL';
+  depthButton.setAttribute('aria-pressed', String(pushing));
+  depthButton.setAttribute('aria-label', pushing ? 'Push mode. Switch to pull' : 'Pull mode. Switch to push');
+  depthButton.title = pushing
+    ? 'Drag to push the photo away from you. Tap to switch to pull.'
+    : 'Drag to pull the photo toward you. Tap to switch to push.';
+});
+
 document.getElementById('reset-btn').addEventListener('click', () => {
   if (!mat.map) return;
   isDragging = false;
